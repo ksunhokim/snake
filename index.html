@@ -1,18 +1,18 @@
 <!DOCTYPE html>
 <html>
     <canvas id='snake' width='400' height='400'></canvas>
-    <script id="vert" type="text/plain">
+	<script id="vert" type="text/plain">
         attribute vec2 aVertexPosition;
         attribute vec3 aColor;
         varying vec2 vTexCoord;
         varying vec3 vColor;
-		void main() {
-            vTexCoord = aVertexPosition;
-            vColor = aColor;
-			gl_Position = vec4(aVertexPosition, 0, 1);
-		}
-    </script>
-    <script id="frag" type="text/plain">
+	void main() {
+		vTexCoord = aVertexPosition;
+		vColor = aColor;
+		gl_Position = vec4(aVertexPosition, 0, 1);
+	}
+	</script>
+	<script id="frag" type="text/plain">
         precision mediump float;
         varying vec2 vTexCoord;
         varying vec3 vColor;
@@ -30,7 +30,7 @@
             return steptwice(grid.x, tmp.x, n * vTexCoord.x) * steptwice(grid.y, tmp.y, n * vTexCoord.y);
         }
 
-		void main() {
+	void main() {
             float isgrid = isinsidegrid(draw);
             if (clear > 0.5) {
                 isgrid = 0.0;
@@ -44,8 +44,8 @@
             if (isinsidegrid(draw) < 0.5 && fulldraw < 0.5) {
                 discard;
             }
-		}
-    </script>
+	}
+	</script>
 	<script>
         function createShader(str, type) {
             var shader = gl.createShader(type);
