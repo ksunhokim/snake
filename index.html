@@ -159,7 +159,7 @@
 
         function relocateFood() {
             while(true) {
-                foodPos = [getRandomInt(16)-9, getRandomInt(16)-9];
+                foodPos = [getRandomInt(16)-8, getRandomInt(16)-8];
                 if (queue.findIndex(x => x.compare(foodPos)) == -1) {
                     break;
                 }
