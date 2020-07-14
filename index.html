@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+    <canvas id='snake' width='400' height='400'></canvas>
+    <script id="vert" type="text/plain">
+        attribute vec2 aVertexPosition;
+        attribute vec3 aColor;
+        varying vec2 vTexCoord;
+        varying vec3 vColor;
+		void main() {
+            vTexCoord = aVertexPosition;
+            vColor = aColor;
+			gl_Position = vec4(aVertexPosition, 0, 1);
+		}
+    </script>
+    <script id="frag" type="text/plain">
+        precision mediump float;
+        varying vec2 vTexCoord;
+        varying vec3 vColor;
+        float n = 8.0;
+        uniform vec2 draw;
+        uniform vec3 drawColor;
+        uniform float clear;
+        uniform float fulldraw;
+        float steptwice(float edge1, float edge2, float x) {
+            return step(edge1, x) * step(-edge2, -x);
+        }
+
+        float isinsidegrid(vec2 grid) {
+            vec2 tmp = grid + vec2(1.0);
+            return steptwice(grid.x, tmp.x, n * vTexCoord.x) * steptwice(grid.y, tmp.y, n * vTexCoord.y);
+        }
+
+		void main() {
+            float isgrid = isinsidegrid(draw);
+            if (clear > 0.5) {
+                isgrid = 0.0;
+            }
+
+            vec4 color = mix(vec4(vColor, 1.0), vec4(drawColor,1.0), isgrid);
+            float vx = smoothstep(0.85, 0.9, fract(n * vTexCoord.x));
+            float vy = smoothstep(0.85, 0.9, fract(n * vTexCoord.y));
+            
+            gl_FragColor = mix(color, vec4(1,1,1,1), vec4(vx, vx, vx, 1) + vec4(vy, vy, vy, 1));
+            if (isinsidegrid(draw) < 0.5 && fulldraw < 0.5) {
+                discard;
+            }
+		}
+    </script>
+	<script>
+        function createShader(str, type) {
+            var shader = gl.createShader(type);
+            gl.shaderSource(shader, str);
+            gl.compileShader(shader);
+            if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+                throw gl.getShaderInfoLog(shader);
+            }
+            return shader;
+        }
+
+        function createProgram(vstr, fstr) {
+            var program = gl.createProgram();
+            var vshader = createShader(vstr, gl.VERTEX_SHADER);
+            var fshader = createShader(fstr, gl.FRAGMENT_SHADER);
+            gl.attachShader(program, vshader);
+            gl.attachShader(program, fshader);
+            gl.linkProgram(program);
+            if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+                throw gl.getProgramInfoLog(program);
+            }
+            return program;
+        }
+
+        function screenQuad() {
+            var vertexPosBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, vertexPosBuffer);
+            var vertices = [-1, -1, 1, -1, -1, 1, 1, 1];
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+            vertexPosBuffer.itemSize = 2;
+            vertexPosBuffer.numItems = 4;
+            return vertexPosBuffer;
+        }
+
+        var backgroundColors = [0.945, 0.635, 0.858, 0.976, 0.647, 0.325, 0.694, 0.494, 0.925, 0.501, 0.956, 0.913];
+
+        function screenColor() {
+            var vertexPosBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, vertexPosBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(backgroundColors), gl.STATIC_DRAW);
+            vertexPosBuffer.itemSize = 3;
+            vertexPosBuffer.numItems = 4;
+            return vertexPosBuffer;
+        }
+
+		let c = document.getElementById('snake');
+		let gl = c.getContext('webgl', { preserveDrawingBuffer: true });
+		gl.clearColor(0,0,0.8,1);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        let vert = document.getElementById('vert').textContent;
+        let frag = document.getElementById('frag').textContent;
+        let offset = [1, 1];
+        let program = createProgram(vert,frag);
+
+        function draw(drawVec, drawColor, clear=false, fullDraw=false) {
+            gl.useProgram(program);
+            let vertexPosBuffer = screenQuad();
+            program.vertexPosAttrib = gl.getAttribLocation(program, 'aVertexPosition');
+            gl.enableVertexAttribArray(program.vertexPosAttrib);
+            gl.vertexAttribPointer(program.vertexPosAttrib, vertexPosBuffer.itemSize, gl.FLOAT, false, 0, 0);
+
+            let colorBuffer = screenColor();
+            program.aColor = gl.getAttribLocation(program, 'aColor');
+            gl.enableVertexAttribArray(program.aColor);
+            gl.vertexAttribPointer(program.aColor, colorBuffer.itemSize, gl.FLOAT, false, 0, 0);
+            
+            let drawLoc = gl.getUniformLocation(program, "draw");
+            let drawColorLoc = gl.getUniformLocation(program, "drawColor");
+            let clearLoc = gl.getUniformLocation(program, "clear");
+            let fulldrawLoc = gl.getUniformLocation(program, "fulldraw");
+            gl.uniform2f(drawLoc, ...drawVec);
+            gl.uniform3f(drawColorLoc, ...drawColor);
+            gl.uniform1f(clearLoc, clear ? 1.0 : 0.0);
+            gl.uniform1f(fulldrawLoc, fullDraw ? 1.0 : 0.0);
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, vertexPosBuffer.numItems);
+        }
+
+        Array.prototype.add = function(other) {
+            let result = []
+            for(let i = 0; i < this.length; i++) {
+                result.push( this[i] + other[i])
+            }
+
+            return result;
+        }
+
+        Array.prototype.compare = function(other) {
+            return this[0] == other[0] && this[1] == other[1];
+        }
+
+        let foodColor = [0.5,0.5,0.5];
+        let charColor = [0,0,0];
+        
+        let charPos = [0.0, 0.0];
+        let foodPos = [1.0, 1.0];
+
+        let charDir = [0.0, 1.0];
+
+        draw(charPos, charColor, false, true);
+        draw(foodPos, foodColor, false, false);
+        let lastPos = null;
+        var queue = [];
+
+        let inited = false;
+
+        let dead = false;
+
+        function getRandomInt(max) {
+            return Math.floor(Math.random() * Math.floor(max));
+        }
+
+        function relocateFood() {
+            while(true) {
+                foodPos = [getRandomInt(16)-9, getRandomInt(16)-9];
+                if (queue.findIndex(x => x.compare(foodPos)) == -1) {
+                    break;
+                }
+            }
+        }
+        
+        function gameLoop() { 
+            queue.push(charPos);
+            charPos = charPos.add(charDir);
+            if (charPos[0] < -8 || charPos[0] >= 8 || charPos[1] < -8 || charPos[1] >= 8) {
+                dead = true;
+                backgroundColors = [1,0,0, 1,1,0, 1,0,1, 0,0,0];
+                draw([0,0], [0,0,0], true, true);
+                return;
+            }
+            draw(charPos, charColor, false);
+
+            if (foodPos[0] != charPos[0] || foodPos[1] != charPos[1]){
+                let x = queue.shift();
+                if (queue.findIndex(y => x.compare(y)) == -1 && !x.compare(charPos))
+                    draw(x, charColor, true);
+                draw(foodPos, foodColor, false);
+            } else {
+                draw(foodPos, foodColor, true);
+                draw(charPos, charColor, false);
+                relocateFood();
+                draw(foodPos, foodColor, false);
+            }
+        }
+
+        setInterval(() => {
+            if (!dead)
+                gameLoop();
+                
+        }, 1000.0/2.0);
+
+        document.addEventListener('keydown', function(event){
+            event.preventDefault();
+            switch (event.keyCode) {
+                case 40:
+                    charDir = [0.0, -1.0];
+                    break;
+                case 38:
+                    charDir = [0.0, 1.0];
+                    break;
+                case 37:
+                    charDir = [-1.0, 0.0];
+                    break;
+                case 39:
+                    charDir = [1.0, 0.0];
+                    break;
+            }
+        });
+	</script>
+</html>
